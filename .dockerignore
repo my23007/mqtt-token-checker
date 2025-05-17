@@ -1,1 +1,6 @@
+__pycache__/
+*.pyc
+.git/
+.github/
+blackrock_mqtt_tokens.csv
 
