@@ -27,7 +27,7 @@ jobs:
     - name: Run Safety (SCA)
       run: |
         pip install safety
-        safety check --full-report || true  # Allow report generation without breaking the build
+        safety check --full-report || true  # Allow failures but still generate report
 
     - name: Run Bandit (SCST)
       run: |
@@ -37,13 +37,14 @@ jobs:
     - name: Build Docker Image
       run: docker build -t mqtt-token-checker .
 
-    # Optional: push image to Docker Hub
-    # - name: Login to DockerHub
-    #   run: echo "${{ secrets.DOCKER_PASSWORD }}" | docker login -u "${{ secrets.DOCKER_USERNAME }}" --password-stdin
-    # - name: Push Docker Image
-    #   run: docker push mqtt-token-checker
+    - name: Scan Docker Image with Trivy
+      uses: aquasecurity/trivy-action@master
+      with:
+        image-ref: mqtt-token-checker
+        format: table
+        exit-code: 1
+        severity: CRITICAL,HIGH
 
-    # Optional: deploy to remote server via SSH
     - name: Deploy to Remote Server
       uses: appleboy/ssh-action@v1.0.0
       with:
@@ -51,8 +52,7 @@ jobs:
         username: ${{ secrets.SERVER_USER }}
         key: ${{ secrets.SERVER_SSH_KEY }}
         script: |
-          docker pull mqtt-token-checker
+          docker pull mqtt-token-checker || true
           docker stop mqtt-token-checker || true
           docker rm mqtt-token-checker || true
           docker run -d --name mqtt-token-checker mqtt-token-checker
-
