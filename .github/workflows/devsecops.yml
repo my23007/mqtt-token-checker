@@ -1,1 +1,58 @@
+name: DevSecOps Pipeline
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  devsecops:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout Repository
+      uses: actions/checkout@v3
+
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.10'
+
+    - name: Install Dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+
+    - name: Run Safety (SCA)
+      run: |
+        pip install safety
+        safety check --full-report || true  # Allow report generation without breaking the build
+
+    - name: Run Bandit (SCST)
+      run: |
+        pip install bandit
+        bandit -r app/ || true
+
+    - name: Build Docker Image
+      run: docker build -t mqtt-token-checker .
+
+    # Optional: push image to Docker Hub
+    # - name: Login to DockerHub
+    #   run: echo "${{ secrets.DOCKER_PASSWORD }}" | docker login -u "${{ secrets.DOCKER_USERNAME }}" --password-stdin
+    # - name: Push Docker Image
+    #   run: docker push mqtt-token-checker
+
+    # Optional: deploy to remote server via SSH
+    - name: Deploy to Remote Server
+      uses: appleboy/ssh-action@v1.0.0
+      with:
+        host: ${{ secrets.SERVER_IP }}
+        username: ${{ secrets.SERVER_USER }}
+        key: ${{ secrets.SERVER_SSH_KEY }}
+        script: |
+          docker pull mqtt-token-checker
+          docker stop mqtt-token-checker || true
+          docker rm mqtt-token-checker || true
+          docker run -d --name mqtt-token-checker mqtt-token-checker
 
