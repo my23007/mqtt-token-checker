@@ -63,10 +63,13 @@ jobs:
         chmod 600 ~/.ssh/id_rsa
         ssh-keyscan -H ${{ secrets.EC2_HOST }} >> ~/.ssh/known_hosts
 
-    - name: Deploy to EC2
-      run: |
-        ssh ${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }} "echo 'Hello from GitHub Actions!'"
-        docker pull my23007/mqtt-token-checker || true
-        docker stop mqtt-token-checker || true
-        docker rm mqtt-token-checker || true
-        docker run -d --name mqtt-token-checker my23007/mqtt-token-checker
+    - name: Execute remote SSH commands using password
+      uses: appleboy/ssh-action@v1
+      with:
+        host: ${{ secrets.EC2_HOST }}
+        username: ${{ secrets.EC2_USER }}
+        script: |
+          docker pull my23007/mqtt-token-checker || true
+          docker stop mqtt-token-checker || true
+          docker rm mqtt-token-checker || true
+          docker run -d --name mqtt-token-checker my23007/mqtt-token-checker
