@@ -35,8 +35,16 @@ jobs:
         pip install bandit
         bandit -r app/ || true
 
-    - name: Build Docker Image
-      run: docker build -t mqtt-token-checker .
+    - name: Login to Docker Hub
+      uses: docker/login-action@v3
+      with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_PASSWORD }}
+          
+    - name: Build and tag the image
+      run: |
+          docker build -t mqtt-token-checker:latest .
+          docker tag mqtt-token-checker:latest ${{ secrets.DOCKERHUB_USERNAME }}/mqtt-token-checker:latest
       
     - name: Scan Docker Image with Trivy
       uses: aquasecurity/trivy-action@master
@@ -45,7 +53,8 @@ jobs:
         format: table
         exit-code: 1
         severity: CRITICAL,HIGH
- 
+    - name: Push the image to Docker Hub
+      run: docker push ${{ secrets.DOCKERHUB_USERNAME }}/mqtt-token-checker:latest
           
     - name: Setup SSH
       run: |
