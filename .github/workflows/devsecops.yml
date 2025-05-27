@@ -66,8 +66,7 @@ jobs:
     - name: Deploy to EC2
       run: |
         ssh ${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }} "echo 'Hello from GitHub Actions!'"
-        script: |
-          docker pull mqtt-token-checker || true
-          docker stop mqtt-token-checker || true
-          docker rm mqtt-token-checker || true
-          docker run -d --name mqtt-token-checker mqtt-token-checker
+        docker pull my23007/mqtt-token-checker || true
+        docker stop mqtt-token-checker || true
+        docker rm mqtt-token-checker || true
+        docker run -d --name mqtt-token-checker my23007/mqtt-token-checker
