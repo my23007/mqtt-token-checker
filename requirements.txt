@@ -3,4 +3,4 @@ pyjwt
 # DevSecOps tools (optional but useful in CI)
 safety
 bandit
-
+setuptools
