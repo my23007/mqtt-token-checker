@@ -1,5 +1,5 @@
 FROM python:3.14-rc-slim
-
+RUN apt-get update && apt-get upgrade -y && apt-get install gcc
 WORKDIR /app
 
 # Install dependencies
