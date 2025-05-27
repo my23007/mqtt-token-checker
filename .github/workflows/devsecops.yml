@@ -30,14 +30,12 @@ jobs:
         pip install safety
         safety check --full-report || true  # Allow failures but still generate report
 
-    - name: Run Bandit (SCST)
+    - name: Run Bandit (SAST)
       run: |
         pip install bandit
         bandit -r app/ || true
 
-    - name: Build Docker Image
-      run: docker build -t mqtt-token-checker .
-
+    
     - name: Scan Docker Image with Trivy
       uses: aquasecurity/trivy-action@master
       with:
@@ -45,7 +43,10 @@ jobs:
         format: table
         exit-code: 1
         severity: CRITICAL,HIGH
-
+ 
+    - name: Build Docker Image
+      run: docker build -t mqtt-token-checker .
+      
     - name: Setup SSH
       run: |
         mkdir -p ~/.ssh
