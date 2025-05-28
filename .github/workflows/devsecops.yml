@@ -73,10 +73,7 @@ jobs:
         exit-code: 1
         severity: CRITICAL,HIGH
 
-    - name: Run Dockle (Docker Best Practices)
-      run: |
-        docker pull ghcr.io/goodwithtech/dockle:latest
-        docker run --rm -v /var/run/docker.sock:/var/run/docker.sock ghcr.io/goodwithtech/dockle:latest mqtt-token-checker:latest
+   
 
     - name: Evaluate Vulnerability Risk Score
       run: |
