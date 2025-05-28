@@ -76,7 +76,7 @@ jobs:
         wget https://github.com/aquasecurity/trivy/releases/download/v0.18.3/trivy_0.18.3_Linux-64bit.deb
         sudo dpkg -i trivy_0.18.3_Linux-64bit.deb
         trivy image --format json -o report.json mqtt-token-checker:latest
-        HIGH=$(jq '[.Results[].Vulnerabilities[] | select(.Severity == "HIGH" or .Severity == "CRITICAL")] | length' report.json)
+        HIGH=$(jq '[.[] | select(.Vulnerabilities) | .Vulnerabilities[] | select(.Severity == "HIGH" or .Severity == "CRITICAL")] | length' report.json)
         echo "Found $HIGH high or critical vulnerabilities"
         if [ "$HIGH" -gt 5 ]; then
           echo "Too many critical vulnerabilities. Failing build."
