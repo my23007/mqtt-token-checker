@@ -75,7 +75,7 @@ jobs:
         sudo apt-get install -y jq
         wget https://github.com/aquasecurity/trivy/releases/download/v0.18.3/trivy_0.18.3_Linux-64bit.deb
         sudo dpkg -i trivy_0.18.3_Linux-64bit.deb
-        docker save mqtt-token-checker:latest | trivy image --input - --format json -o report.json
+        trivy image mqtt-token-checker:latest --format json -o report.json
         HIGH=$(jq '[.Results[].Vulnerabilities[] | select(.Severity == "HIGH" or .Severity == "CRITICAL")] | length' report.json)
         echo "Found $HIGH high or critical vulnerabilities"
         if [ "$HIGH" -gt 5 ]; then
