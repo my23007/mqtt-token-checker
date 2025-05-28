@@ -5,7 +5,7 @@ on:
     branches: [ main ]
   pull_request:
     branches: [ main ]
-  workflow_dispatch:   
+  workflow_dispatch:
 
 jobs:
   devsecops:
@@ -13,7 +13,7 @@ jobs:
 
     steps:
     - name: Checkout Repository
-      uses: actions/checkout@v3
+      uses: actions/checkout@v4
 
     - name: Set up Python
       uses: actions/setup-python@v4
@@ -39,6 +39,7 @@ jobs:
 
     - name: Run Bandit (SAST)
       run: |
+        pip install bandit
         mkdir -p reports
         bandit -r app/ -f html -o reports/bandit-report.html || true
 
@@ -56,48 +57,47 @@ jobs:
     - name: Login to Docker Hub
       uses: docker/login-action@v3
       with:
-          username: ${{ secrets.DOCKERHUB_USERNAME }}
-          password: ${{ secrets.DOCKERHUB_PASSWORD }}
-          
-    - name: Build and tag the image
+        username: ${{ secrets.DOCKERHUB_USERNAME }}
+        password: ${{ secrets.DOCKERHUB_PASSWORD }}
+
+    - name: Build and Tag Docker Image
       run: |
-          docker build -t mqtt-token-checker:latest .
-          docker tag mqtt-token-checker:latest ${{ secrets.DOCKERHUB_USERNAME }}/mqtt-token-checker:latest
-      
+        docker build -t mqtt-token-checker:latest .
+        docker tag mqtt-token-checker:latest ${{ secrets.DOCKERHUB_USERNAME }}/mqtt-token-checker:latest
+
     - name: Scan Docker Image with Trivy
       uses: aquasecurity/trivy-action@0.11.2
       with:
-        image-ref: mqtt-token-checker
+        image-ref: mqtt-token-checker:latest
         format: table
         exit-code: 1
         severity: CRITICAL,HIGH
 
-
     - name: Run Dockle (Docker Best Practices)
-      uses: goodwithtech/dockle-action@v1
-      with:
-          image: mqtt-token-checker:latest
+      run: |
+        docker pull ghcr.io/goodwithtech/dockle:latest
+        docker run --rm -v /var/run/docker.sock:/var/run/docker.sock ghcr.io/goodwithtech/dockle:latest mqtt-token-checker:latest
 
     - name: Evaluate Vulnerability Risk Score
       run: |
-          sudo apt-get install -y jq
-          docker save mqtt-token-checker:latest | trivy image --input - --format json -o report.json
-          HIGH=$(jq '[.Results[].Vulnerabilities[] | select(.Severity == "HIGH" or .Severity == "CRITICAL")] | length' report.json)
-          echo "Found $HIGH high or critical vulnerabilities"
-          if [ "$HIGH" -gt 5 ]; then
-            echo "Too many critical vulnerabilities. Failing build."
-            exit 1
-          fi
+        sudo apt-get install -y jq
+        docker save mqtt-token-checker:latest | trivy image --input - --format json -o report.json
+        HIGH=$(jq '[.Results[].Vulnerabilities[] | select(.Severity == "HIGH" or .Severity == "CRITICAL")] | length' report.json)
+        echo "Found $HIGH high or critical vulnerabilities"
+        if [ "$HIGH" -gt 5 ]; then
+          echo "Too many critical vulnerabilities. Failing build."
+          exit 1
+        fi
 
     - name: Upload Trivy Report
       uses: actions/upload-artifact@v4
       with:
-          name: trivy-report
-          path: report.json
-          
-    - name: Push the image to Docker Hub
+        name: trivy-report
+        path: report.json
+
+    - name: Push Docker Image to Docker Hub
       run: docker push ${{ secrets.DOCKERHUB_USERNAME }}/mqtt-token-checker:latest
-          
+
     - name: Setup SSH
       run: |
         mkdir -p ~/.ssh
@@ -105,14 +105,14 @@ jobs:
         chmod 600 ~/.ssh/id_rsa
         ssh-keyscan -H ${{ secrets.EC2_HOST }} >> ~/.ssh/known_hosts
 
-    - name: Execute remote SSH commands using password
+    - name: Deploy to EC2 via SSH
       uses: appleboy/ssh-action@v1
       with:
         host: ${{ secrets.EC2_HOST }}
         username: ${{ secrets.EC2_USER }}
         key: ${{ secrets.EC2_SSH_KEY }}
         script: |
-          docker pull my23007/mqtt-token-checker || true
+          docker pull ${{ secrets.DOCKERHUB_USERNAME }}/mqtt-token-checker
           docker stop mqtt-token-checker || true
           docker rm mqtt-token-checker || true
-          docker run -d --name mqtt-token-checker my23007/mqtt-token-checker
+          docker run -d --name mqtt-token-checker ${{ secrets.DOCKERHUB_USERNAME }}/mqtt-token-checker
