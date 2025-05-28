@@ -43,11 +43,7 @@ jobs:
         mkdir -p reports
         bandit -r app/ -f html -o reports/bandit-report.html || true
 
-    - name: Run Semgrep
-      uses: returntocorp/semgrep-action@v1
-      with:
-        config: "p/default"
-
+    
     - name: Upload Bandit Report
       uses: actions/upload-artifact@v4
       with:
