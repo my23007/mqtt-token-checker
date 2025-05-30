@@ -78,13 +78,13 @@ jobs:
 
     - name: Evaluate Vulnerability Risk Score
       run: |
-        sudo apt-get install -y jq
-        HIGH=$(jq '[.Results[].Vulnerabilities[] | select(.Severity == "HIGH" or .Severity == "CRITICAL")] | length' reports/report.json)
+        HIGH=$(jq '[.Results[] | select(.Vulnerabilities != null) | .Vulnerabilities[] | select(.Severity == "HIGH" or .Severity == "CRITICAL")] | length' reports/report.json)
         echo "Found $HIGH high or critical vulnerabilities"
         if [ "$HIGH" -gt 5 ]; then
           echo "Too many critical vulnerabilities. Failing build."
           exit 1
         fi
+
 
     - name: Upload Trivy Report
       uses: actions/upload-artifact@v4
