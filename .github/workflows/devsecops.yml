@@ -62,17 +62,17 @@ jobs:
         docker tag mqtt-token-checker:latest ${{ secrets.DOCKERHUB_USERNAME }}/mqtt-token-checker:latest
 
     - name: Scan Docker Image with Trivy
-      uses: aquasecurity/trivy-action@0.11.2
+      uses: aquasecurity/trivy-action@v0.11.2
       with:
         image-ref: mqtt-token-checker:latest
-        format: table
-        exit-code: 1
+        format: json
+        output: report.json
         severity: CRITICAL,HIGH
 
+
    
-    - name: Evaluate Vulnerability Risk Score (with latest Trivy)
+    - name: Evaluate Vulnerability Risk Score
       run: |
-       docker run --rm -v ${{ github.workspace }}:/app -w /app aquasec/trivy:latest image --format json -o report.json mqtt-token-checker:latest
        sudo apt-get install -y jq
        HIGH=$(jq '[.Results[].Vulnerabilities[] | select(.Severity == "HIGH" or .Severity == "CRITICAL")] | length' report.json)
        echo "Found $HIGH high or critical vulnerabilities"
