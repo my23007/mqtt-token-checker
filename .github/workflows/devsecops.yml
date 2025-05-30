@@ -5,7 +5,7 @@ on:
     branches: [ main ]
   pull_request:
     branches: [ main ]
-  workflow_dispatch:   
+  workflow_dispatch:
 
 jobs:
   devsecops:
@@ -13,7 +13,7 @@ jobs:
 
     steps:
     - name: Checkout Repository
-      uses: actions/checkout@v3
+      uses: actions/checkout@v4
 
     - name: Set up Python
       uses: actions/setup-python@v4
@@ -28,34 +28,69 @@ jobs:
     - name: Run Safety (SCA)
       run: |
         pip install safety
-        safety check --full-report || true  # Allow failures but still generate report
+        mkdir -p reports
+        safety check --full-report > reports/safety-report.txt || true
+
+    - name: Upload Safety Report
+      uses: actions/upload-artifact@v4
+      with:
+         name: safety-report
+         path: reports/safety-report.txt
 
     - name: Run Bandit (SAST)
       run: |
         pip install bandit
-        bandit -r app/ || true
+        mkdir -p reports
+        bandit -r app/ -f html -o reports/bandit-report.html || true
+
+    
+    - name: Upload Bandit Report
+      uses: actions/upload-artifact@v4
+      with:
+        name: bandit-report
+        path: reports/bandit-report.html
 
     - name: Login to Docker Hub
       uses: docker/login-action@v3
       with:
-          username: ${{ secrets.DOCKERHUB_USERNAME }}
-          password: ${{ secrets.DOCKERHUB_PASSWORD }}
-          
-    - name: Build and tag the image
+        username: ${{ secrets.DOCKERHUB_USERNAME }}
+        password: ${{ secrets.DOCKERHUB_PASSWORD }}
+
+    - name: Build and Tag Docker Image
       run: |
-          docker build -t mqtt-token-checker:latest .
-          docker tag mqtt-token-checker:latest ${{ secrets.DOCKERHUB_USERNAME }}/mqtt-token-checker:latest
-      
+        docker build -t mqtt-token-checker:latest .
+        docker tag mqtt-token-checker:latest ${{ secrets.DOCKERHUB_USERNAME }}/mqtt-token-checker:latest
+
     - name: Scan Docker Image with Trivy
-      uses: aquasecurity/trivy-action@master
+      uses: aquasecurity/trivy-action@0.11.2
       with:
-        image-ref: mqtt-token-checker
+        image-ref: mqtt-token-checker:latest
         format: table
         exit-code: 1
         severity: CRITICAL,HIGH
-    - name: Push the image to Docker Hub
+
+   
+    - name: Evaluate Vulnerability Risk Score (with latest Trivy)
+      run: |
+       docker run --rm -v ${{ github.workspace }}:/app -w /app aquasec/trivy:latest image --format json -o report.json mqtt-token-checker:latest
+       sudo apt-get install -y jq
+       HIGH=$(jq '[.Results[].Vulnerabilities[] | select(.Severity == "HIGH" or .Severity == "CRITICAL")] | length' report.json)
+       echo "Found $HIGH high or critical vulnerabilities"
+       if [ "$HIGH" -gt 5 ]; then
+         echo "Too many critical vulnerabilities. Failing build."
+         exit 1
+       fi
+
+
+    - name: Upload Trivy Report
+      uses: actions/upload-artifact@v4
+      with:
+        name: trivy-report
+        path: report.json
+
+    - name: Push Docker Image to Docker Hub
       run: docker push ${{ secrets.DOCKERHUB_USERNAME }}/mqtt-token-checker:latest
-          
+
     - name: Setup SSH
       run: |
         mkdir -p ~/.ssh
@@ -63,14 +98,14 @@ jobs:
         chmod 600 ~/.ssh/id_rsa
         ssh-keyscan -H ${{ secrets.EC2_HOST }} >> ~/.ssh/known_hosts
 
-    - name: Execute remote SSH commands using password
+    - name: Deploy to EC2 via SSH
       uses: appleboy/ssh-action@v1
       with:
         host: ${{ secrets.EC2_HOST }}
         username: ${{ secrets.EC2_USER }}
         key: ${{ secrets.EC2_SSH_KEY }}
         script: |
-          docker pull my23007/mqtt-token-checker || true
+          docker pull ${{ secrets.DOCKERHUB_USERNAME }}/mqtt-token-checker
           docker stop mqtt-token-checker || true
           docker rm mqtt-token-checker || true
-          docker run -d --name mqtt-token-checker my23007/mqtt-token-checker
+          docker run -d --name mqtt-token-checker ${{ secrets.DOCKERHUB_USERNAME }}/mqtt-token-checker
