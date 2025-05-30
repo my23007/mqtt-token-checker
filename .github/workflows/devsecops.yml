@@ -56,34 +56,40 @@ jobs:
         password: ${{ secrets.DOCKERHUB_PASSWORD }}
 
     - name: Build and Tag Docker Image
-      run: |
-        docker build -t mqtt-token-checker:latest .
-        docker tag mqtt-token-checker:latest ${{ secrets.DOCKERHUB_USERNAME }}/mqtt-token-checker:latest
+  run: |
+    docker build -t mqtt-token-checker:latest .
+    docker tag mqtt-token-checker:latest ${{ secrets.DOCKERHUB_USERNAME }}/mqtt-token-checker:latest
+
+    - name: Install Trivy
+     run: |
+      sudo apt-get update
+      sudo apt-get install -y wget
+      wget https://github.com/aquasecurity/trivy/releases/latest/download/trivy_0.51.1_Linux-64bit.deb
+      sudo dpkg -i trivy_0.51.1_Linux-64bit.deb
 
     - name: Scan Docker Image with Trivy
-      uses: aquasecurity/trivy-action@v0.13.1
-      with:
-        image-ref: mqtt-token-checker:latest
-        format: json
-        output: report.json
-        severity: CRITICAL,HIGH
-        exit-code: 0 # Don't fail yet, we'll evaluate manually
+      run: |
+       mkdir -p reports
+       trivy image --format json -o reports/report.json --severity CRITICAL,HIGH mqtt-token-checker:latest
 
     - name: Evaluate Vulnerability Risk Score
       run: |
-        sudo apt-get install -y jq
-        HIGH=$(jq '[.Results[].Vulnerabilities[] | select(.Severity == "HIGH" or .Severity == "CRITICAL")] | length' report.json)
-        echo "Found $HIGH high or critical vulnerabilities"
-        if [ "$HIGH" -gt 5 ]; then
-          echo "Too many critical vulnerabilities. Failing build."
-          exit 1
-        fi
+       sudo apt-get install -y jq
+       HIGH=$(jq '[.Results[].Vulnerabilities[] | select(.Severity == "HIGH" or .Severity == "CRITICAL")] | length' reports/report.json)
+       echo "Found $HIGH high or critical vulnerabilities"
+       if [ "$HIGH" -gt 5 ]; then
+         echo "Too many critical vulnerabilities. Failing build."
+         exit 1
+       fi
 
     - name: Upload Trivy Report
       uses: actions/upload-artifact@v4
       with:
         name: trivy-report
-        path: report.json
+        path: reports/report.json
+
+
+    
 
     - name: Push Docker Image to Docker Hub
       run: docker push ${{ secrets.DOCKERHUB_USERNAME }}/mqtt-token-checker:latest
